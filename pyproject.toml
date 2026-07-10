@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "pytradowix"
+version = "1.0.0"
+description = "Unofficial Python client for the TradoWix binary options trading platform"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Muhammad Usman", email = "usmanch0790@gmail.com" }
+]
+keywords = ["tradowix", "binary-options", "trading", "websocket", "api"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
+dependencies = [
+    "httpx>=0.27.0",
+    "websockets>=12.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.10",
+]
+
+[project.urls]
+Repository = "https://github.com/usmanch96/pytradowix"
+Issues = "https://github.com/usmanch96/pytradowix/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pytradowix*"]
+
+[tool.setuptools.package-data]
+pytradowix = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

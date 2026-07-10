@@ -1,0 +1,36 @@
+# Byte-compiled / cached
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Distribution / build
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+.agents
+
+# Credentials & sessions
+session.json
+.env
+.env.*
+
+# Logs
+*.log
+
+# Media / temp
+*.mp4
+.DS_Store
+
+# Package managers
+*.lock
+node_modules/
+
+# Test cache
+.pytest_cache/
+.mypy_cache/
+
+# Notebooks
+.ipynb_checkpoints/
