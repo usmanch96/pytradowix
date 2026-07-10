@@ -1,21 +1,44 @@
 # 🚀 PyTradoWix
 
 <p align="center">
-  <i>Unofficial Python client for the TradoWix binary options trading platform.</i>
+  <strong>Unofficial Python API Wrapper & client for the TradoWix binary options trading platform.</strong>
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue" alt="Python Versions"/>
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License"/>
   <img src="https://img.shields.io/badge/typing-strict-purple" alt="Typing"/>
+  <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Type Coverage"/>
 </p>
 
 ---
 
 ## 📘 About
 
-**pytradowix** is an async Python wrapper for the [TradoWix](https://tradowix.com) WebSocket trading API. It lets you authenticate, stream live prices, fetch unlimited historical candle data, and place / monitor binary option trades — all from clean, typed Python code.
+**pytradowix** is a high-performance, asynchronous Python client wrapper designed for the [TradoWix](https://tradowix.com) trading platform. Engineered for **algorithmic trading**, **automated signal execution**, and **financial market data analysis**, it enables seamless integration with TradoWix's WebSocket and REST APIs.
 
-> ⚠️ This library is **not a trading bot** and makes no trading decisions. It is a developer tool.
+### 🌟 Key Features
+
+*   **⚡ Real-Time Price Streaming**: Fast, asynchronous subscription to live currency and OTC asset price tick updates.
+*   **📈 Unlimited Historical Data**: Retrieve comprehensive historical candles (OHLC) using backward-paginated queries (tested for weeks/months of history).
+*   **🤖 Automated Trade Execution**: Place binary option orders (CALL/PUT) programmatically and await resolution results.
+*   **🔒 Secure Session Caching**: Automatic session token caching (`~/.pytradowix/session.json`) to bypass repeated credentials requests.
+*   **🔄 Connection Recovery**: In-built automatic reconnection policy with custom exponential backoff delays.
+*   **🛡️ Fully Type-Safe**: Complies with strict type-checking (`mypy --strict`) and exports fully documented frozen dataclasses.
+
+---
+
+## 📌 Table of Contents
+*   [🛠 Installation](#-installation)
+*   [⚡ Quick Start](#-quick-start)
+*   [💡 API Reference](#-api-reference)
+*   [📦 Typed Data Classes](#-typed-data-classes)
+*   [🔄 Auto-Reconnect](#-auto-reconnect)
+*   [🔒 Session Caching](#-session-caching)
+*   [🧪 Running Tests](#-running-tests)
+*   [📁 Project Structure](#-project-structure)
+*   [⚙️ Environment Variables](#%EF%B8%8F-environment-variables)
+*   [💬 Contact](#-contact)
+*   [📄 License](#-license)
 
 ---
 
