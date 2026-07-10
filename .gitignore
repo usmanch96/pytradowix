@@ -34,3 +34,6 @@ node_modules/
 
 # Notebooks
 .ipynb_checkpoints/
+
+# Custom local code
+signals/
