@@ -5,14 +5,25 @@ build-backend = "setuptools.backends.legacy:build"
 [project]
 name = "pytradowix"
 version = "1.0.0"
-description = "Unofficial Python client for the TradoWix binary options trading platform"
+description = "Unofficial async Python wrapper & API client for the TradoWix binary options trading platform. High-performance WebSocket price streaming, automated order placement, and historical candle retrieval."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 authors = [
     { name = "Muhammad Usman", email = "usmanch0790@gmail.com" }
 ]
-keywords = ["tradowix", "binary-options", "trading", "websocket", "api"]
+keywords = [
+    "tradowix",
+    "tradowix-api",
+    "tradowix-bot",
+    "binary-options",
+    "otc-trading",
+    "websocket-client",
+    "historical-candles",
+    "algo-trading",
+    "binary-options-bot",
+    "pytradowix",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
