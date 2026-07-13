@@ -15,7 +15,8 @@ import httpx
 from websockets.asyncio.client import ClientConnection
 
 from pytradowix.utils.waits import SlotRegistry
-from pytradowix.types import Quote, ReconnectPolicy, Balance, TradeResult
+from pytradowix.types import Quote, ReconnectPolicy, Balance, TradeResult, Candle
+from pytradowix.utils.candles import CandleAggregator
 
 
 class _ClientBase:
@@ -57,6 +58,8 @@ class _ClientBase:
     on_disconnect: Optional[Callable[[], Union[None, Any]]]
     on_balance_update: Optional[Callable[[Balance], Union[None, Any]]]
     on_trade_settled: Optional[Callable[[TradeResult], Union[None, Any]]]
+    on_candle_update: Optional[Callable[[str, int, Candle, bool], Union[None, Any]]]
+    _candle_aggregators: Dict[str, Dict[int, CandleAggregator]]
 
     _server_time_offset: float
     _subscribed_symbols: set[str]
@@ -65,6 +68,8 @@ class _ClientBase:
         raise NotImplementedError
     async def subscribe_ticks(self, symbol: str, lookback_minutes: int = 200, timeframe: int = 60, chart_type: str = "candle") -> None: ...
     async def unsubscribe_ticks(self, symbol: str) -> None: ...
+    def setup_candle_stream(self, symbol: str, periods: List[int] = [60]) -> None:
+        raise NotImplementedError
 
     # ── Internal helpers (implemented in client.py) ───────────────────────
     async def _send_ws(self, payload: Dict[str, Any]) -> None: ...

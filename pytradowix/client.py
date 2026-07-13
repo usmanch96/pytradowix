@@ -16,8 +16,9 @@ from pytradowix._api.trading import TradingMixin
 from pytradowix._api.realtime import RealtimeMixin
 from pytradowix._api.history import HistoryMixin
 from pytradowix.utils.waits import SlotRegistry
-from pytradowix.types import Quote, ReconnectPolicy, Balance, TradeResult
+from pytradowix.types import Quote, ReconnectPolicy, Balance, TradeResult, Candle
 from pytradowix.exceptions import TradowixException, TradowixAuthError
+from pytradowix.utils.candles import CandleAggregator
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,8 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
         self.on_disconnect: Optional[Callable[[], Union[None, Any]]] = None
         self.on_balance_update: Optional[Callable[[Balance], Union[None, Any]]] = None
         self.on_trade_settled: Optional[Callable[[TradeResult], Union[None, Any]]] = None
+        self.on_candle_update: Optional[Callable[[str, int, Candle, bool], Union[None, Any]]] = None
+        self._candle_aggregators: Dict[str, Dict[int, CandleAggregator]] = {}
         self._server_time_offset: float = 0.0
         self._subscribed_symbols: set[str] = set()
 
@@ -290,8 +293,14 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
                 self._server_time_offset = (float(server_time_ms) / 1000.0) - time.time()
 
     async def _trigger_quote_callback(self, quote: Quote) -> None:
-        """Safely fire the user-registered on_quote callback."""
+        """Safely fire the user-registered on_quote callback and aggregate candle updates."""
         await self._trigger_callback(self.on_quote, quote)
+
+        symbol = quote.symbol
+        if symbol in self._candle_aggregators:
+            for period, aggregator in self._candle_aggregators[symbol].items():
+                candle, is_closed = aggregator.add_tick(quote.price, quote.timestamp)
+                await self._trigger_callback(self.on_candle_update, symbol, period, candle, is_closed)
 
     async def _trigger_callback(self, cb: Optional[Callable[..., Any]], *args: Any) -> None:
         """Safely fire a user-registered callback whether sync or async."""

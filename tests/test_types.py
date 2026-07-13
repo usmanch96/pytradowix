@@ -575,6 +575,52 @@ class TestPayoutFiltering:
         assert blitz_assets[0].symbol == "GBPUSD"
 
 
+# ── Candle Aggregation ────────────────────────────────────────────────────────
+
+class TestCandleAggregator:
+    def test_candle_aggregation_single_frame(self) -> None:
+        from pytradowix.utils.candles import CandleAggregator
+
+        agg = CandleAggregator(period_seconds=60)
+
+        candle, closed = agg.add_tick(price=100.0, timestamp=10.0)
+        assert not closed
+        assert candle.time == 0
+        assert candle.open == 100.0
+        assert candle.high == 100.0
+        assert candle.low == 100.0
+        assert candle.close == 100.0
+
+        candle, closed = agg.add_tick(price=105.0, timestamp=25.0)
+        assert not closed
+        assert candle.time == 0
+        assert candle.open == 100.0
+        assert candle.high == 105.0
+        assert candle.low == 100.0
+        assert candle.close == 105.0
+
+        candle, closed = agg.add_tick(price=95.0, timestamp=45.0)
+        assert not closed
+        assert candle.time == 0
+        assert candle.open == 100.0
+        assert candle.high == 105.0
+        assert candle.low == 95.0
+        assert candle.close == 95.0
+
+        candle, closed = agg.add_tick(price=102.0, timestamp=65.0)
+        assert closed
+        assert candle.time == 0
+        assert candle.open == 100.0
+        assert candle.high == 105.0
+        assert candle.low == 95.0
+        assert candle.close == 95.0
+
+        assert agg.current_candle is not None
+        assert agg.current_candle.time == 60
+        assert agg.current_candle.open == 102.0
+
+
+
 
 
 

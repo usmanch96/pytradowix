@@ -133,6 +133,9 @@ client.on_balance_update = lambda balance: print(f"💰 New Balance: {balance.cu
 
 # Triggered automatically when any placed trade is settled by the server
 client.on_trade_settled = lambda result: print(f"Settled: {result.trade_id} -> {result.result.upper()} (${result.profit:+.2f})")
+
+# Triggered when aggregated OHLC candles update or close (requires setup_candle_stream)
+client.on_candle_update = lambda symbol, period, candle, is_closed: print(f"Candle closed? {is_closed} - Close: {candle.close}")
 ```
 
 ---
@@ -152,6 +155,7 @@ client.on_trade_settled = lambda result: print(f"Settled: {result.trade_id} -> {
 | `get_highest_payout_assets(min_payout, mode)` | Filter active/open instruments by minimum payout rate, sorted in descending order of payout |
 | `subscribe_ticks(symbol)` | Start receiving live `Quote` ticks for a symbol |
 | `unsubscribe_ticks(symbol)` | Stop receiving ticks for a symbol |
+| `setup_candle_stream(symbol, periods)` | Configure timeframe aggregators (e.g. `[10, 60]`) to build live candles from streamed ticks |
 | `get_candles(symbol, end_from_time, minutes, timeframe)` | Fetch a single batch of historical candles |
 | `get_historical_candles(symbol, amount_of_seconds, period)` | Fetch unlimited history via backward pagination |
 | `buy(amount, symbol, direction, duration, is_demo, expiration_mode)` | Place a turbo (minutes) or blitz (seconds) trade |

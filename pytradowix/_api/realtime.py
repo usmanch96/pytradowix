@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import logging
+from typing import List
+
+from pytradowix.utils.candles import CandleAggregator
 
 from pytradowix._base import _ClientBase
 
@@ -46,4 +49,19 @@ class RealtimeMixin(_ClientBase):
         logger.info(f"Unsubscribing from tick updates for {symbol}")
         self._subscribed_symbols.discard(symbol)
         await self._send_ws(msg)
+
+    def setup_candle_stream(self, symbol: str, periods: List[int] = [60]) -> None:
+        """Register timeframe aggregators for a symbol's candle stream.
+
+        Args:
+            symbol: Asset symbol.
+            periods: List of timeframes in seconds (default: [60]).
+        """
+        if symbol not in self._candle_aggregators:
+            self._candle_aggregators[symbol] = {}
+
+        for period in periods:
+            if period not in self._candle_aggregators[symbol]:
+                self._candle_aggregators[symbol][period] = CandleAggregator(period_seconds=period)
+
 
