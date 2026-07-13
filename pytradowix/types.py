@@ -149,8 +149,8 @@ class AssetInfo:
             precision=int(data.get("precision", 5)),
             is_active=bool(data.get("isActive", True)),
             is_otc=bool(data.get("isOtc", False)),
-            turbo_payout_rate=float(data.get("turboPayout", 0.0)),
-            blitz_payout_rate=float(data.get("blitzPayout", 0.0)),
+            turbo_payout_rate=float(data.get("turboPayoutRate") or data.get("turboPayout") or 0.0),
+            blitz_payout_rate=float(data.get("blitzPayoutRate") or data.get("blitzPayout") or 0.0),
             is_open=bool(data.get("isOpen", True)),
         )
 
@@ -182,7 +182,7 @@ class TradeResult:
         result_raw = str(data.get("result", "")).lower()
         status = result_raw if result_raw in ("win", "loss", "draw") else "pending"
         return cls(
-            trade_id=str(data.get("tradeId", "")),
+            trade_id=str(data.get("tradeId") or data.get("id") or ""),
             user_id=str(data.get("userId", "")),
             symbol=str(data.get("symbol", "")),
             direction=str(data.get("direction", "")),

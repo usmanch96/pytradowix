@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import httpx
 import logging
-from typing import Optional
+from typing import Optional, Literal, List
 
 from pytradowix._base import _ClientBase
 from pytradowix.exceptions import TradowixAuthError, TradowixException
@@ -217,4 +217,36 @@ class AccountMixin(_ClientBase):
             if asset.symbol == symbol:
                 return asset.is_active and asset.is_open
         return False
+
+    def get_highest_payout_assets(
+        self,
+        min_payout: float = 0.80,
+        mode: Literal["turbo", "blitz"] = "turbo",
+    ) -> List[AssetInfo]:
+        """Filter tradeable instruments with payout rates above a threshold.
+
+        Args:
+            min_payout: Minimum payout rate threshold (e.g. ``0.80``).
+            mode: Expiration mode to check (``"turbo"`` or ``"blitz"``).
+
+        Returns:
+            list[AssetInfo]: Sorted list of assets in descending order of payout.
+        """
+        assets = self.get_assets()
+        filtered: List[AssetInfo] = []
+        for asset in assets:
+            if not asset.is_active or not asset.is_open:
+                continue
+
+            payout = asset.turbo_payout_rate if mode == "turbo" else asset.blitz_payout_rate
+            if payout >= min_payout:
+                filtered.append(asset)
+
+        if mode == "turbo":
+            filtered.sort(key=lambda a: a.turbo_payout_rate, reverse=True)
+        else:
+            filtered.sort(key=lambda a: a.blitz_payout_rate, reverse=True)
+
+        return filtered
+
 

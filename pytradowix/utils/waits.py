@@ -72,11 +72,14 @@ class SlotRegistry:
         # Named slots
         self.balance: WaitableSlot[Dict[str, Any]] = WaitableSlot()
         self.auth_status: WaitableSlot[bool] = WaitableSlot()
+        self.open_trades: WaitableSlot[Dict[str, Any]] = WaitableSlot()
+        self.trade_history: WaitableSlot[Dict[str, Any]] = WaitableSlot()
 
         # Keyed slots (created on demand)
         self._order_confirm: Dict[str, WaitableSlot[Dict[str, Any]]] = {}
         self._win_result: Dict[str, WaitableSlot[Dict[str, Any]]] = {}
         self._candle_history: Dict[str, WaitableSlot[Dict[str, Any]]] = {}
+        self._chart_load: Dict[str, WaitableSlot[Dict[str, Any]]] = {}
 
     def order_confirm(self, request_id: str) -> WaitableSlot[Dict[str, Any]]:
         slot = self._order_confirm.get(request_id)
@@ -110,9 +113,6 @@ class SlotRegistry:
 
     # Initial chart load triggered by subscribeTicks (no requestId)
     def chart_load(self, symbol: str) -> WaitableSlot[Dict[str, Any]]:
-        slot = getattr(self, "_chart_load", None)
-        if slot is None:
-            self._chart_load = {}
         target_slot = self._chart_load.get(symbol)
         if target_slot is None:
             target_slot = WaitableSlot()

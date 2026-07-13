@@ -277,6 +277,12 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
                 if symbol:
                     self._slots.chart_load(symbol).set(data)
 
+        elif m_type == "openTrades":
+            self._slots.open_trades.set(msg)
+
+        elif m_type == "tradeHistory":
+            self._slots.trade_history.set(msg)
+
         elif m_type == "timeSync":
             data = msg.get("data", {})
             server_time_ms = data.get("timestamp") or msg.get("timestamp")

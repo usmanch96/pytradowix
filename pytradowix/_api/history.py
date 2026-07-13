@@ -141,7 +141,7 @@ class HistoryMixin(_ClientBase):
         if all_candles:
             current_end_time = sorted(all_candles.keys())[0]
         else:
-            current_end_time = end_from_time
+            current_end_time = int(end_from_time)
 
         minutes_chunk = 400  # safe batch size per request
         chunk_seconds = minutes_chunk * 60

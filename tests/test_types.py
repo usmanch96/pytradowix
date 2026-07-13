@@ -403,5 +403,179 @@ class TestTimeSync:
         assert client.get_server_time() == 1005.0
 
 
+# ── History and Open Trades Retrieval ─────────────────────────────────────────
+
+class TestHistoryAndOpenTrades:
+    @pytest.mark.asyncio
+    async def test_get_open_trades(self, monkeypatch):
+        from typing import Any, cast
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+
+        class MockWs:
+            class MockState:
+                name = "OPEN"
+            state = MockState()
+        client._ws = cast(Any, MockWs())
+
+        sent_payload: Any = None
+
+        async def mock_send_ws(payload):
+            nonlocal sent_payload
+            sent_payload = payload
+            client._slots.open_trades.set({
+                "type": "openTrades",
+                "data": [
+                    {
+                        "id": "t-open-01",
+                        "userId": "u-01",
+                        "symbol": "EURUSD",
+                        "direction": "call",
+                        "amount": 10.0,
+                        "openPrice": 1.1234,
+                        "result": "pending",
+                        "isDemo": True,
+                    }
+                ]
+            })
+
+        monkeypatch.setattr(client, "_send_ws", mock_send_ws)
+
+        res = await client.get_open_trades()
+        assert len(res) == 1
+        assert res[0].trade_id == "t-open-01"
+        assert res[0].symbol == "EURUSD"
+        assert res[0].result == "pending"
+        assert sent_payload["type"] == "getOpenTrades"
+        assert sent_payload["isDemo"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_trade_history(self, monkeypatch):
+        from typing import Any, cast
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+
+        class MockWs:
+            class MockState:
+                name = "OPEN"
+            state = MockState()
+        client._ws = cast(Any, MockWs())
+
+        sent_payload: Any = None
+
+        async def mock_send_ws(payload):
+            nonlocal sent_payload
+            sent_payload = payload
+            client._slots.trade_history.set({
+                "type": "tradeHistory",
+                "data": {
+                    "trades": [
+                        {
+                            "id": "t-hist-01",
+                            "userId": "u-01",
+                            "symbol": "GBPUSD",
+                            "direction": "put",
+                            "amount": 5.0,
+                            "openPrice": 1.3456,
+                            "closePrice": 1.3450,
+                            "result": "win",
+                            "profit": 4.60,
+                            "isDemo": True,
+                        }
+                    ],
+                    "totalCount": 1,
+                    "page": 1,
+                    "pageSize": 50,
+                }
+            })
+
+        monkeypatch.setattr(client, "_send_ws", mock_send_ws)
+
+        res = await client.get_trade_history(page=1, page_size=10)
+        assert len(res) == 1
+        assert res[0].trade_id == "t-hist-01"
+        assert res[0].symbol == "GBPUSD"
+        assert res[0].result == "win"
+        assert res[0].profit == 4.60
+        assert sent_payload["type"] == "getTradeHistory"
+        assert sent_payload["page"] == 1
+        assert sent_payload["pageSize"] == 10
+
+
+# ── Payout Filtering ──────────────────────────────────────────────────────────
+
+class TestPayoutFiltering:
+    def test_get_highest_payout_assets(self):
+        client = DummyClient([
+            {
+                "id": "1",
+                "symbol": "EURUSD",
+                "name": "EURUSD",
+                "displayName": "EURUSD",
+                "category": "Forex",
+                "groupName": "Currency pairs",
+                "precision": 5,
+                "isActive": True,
+                "isOtc": False,
+                "turboPayout": 0.82,
+                "blitzPayout": 0.70,
+                "isOpen": True,
+            },
+            {
+                "id": "2",
+                "symbol": "GBPUSD",
+                "name": "GBPUSD",
+                "displayName": "GBPUSD",
+                "category": "Forex",
+                "groupName": "Currency pairs",
+                "precision": 5,
+                "isActive": True,
+                "isOtc": False,
+                "turboPayout": 0.90,
+                "blitzPayout": 0.85,
+                "isOpen": True,
+            },
+            {
+                "id": "3",
+                "symbol": "USDJPY",
+                "name": "USDJPY",
+                "displayName": "USDJPY",
+                "category": "Forex",
+                "groupName": "Currency pairs",
+                "precision": 3,
+                "isActive": False,
+                "isOtc": False,
+                "turboPayout": 0.95,
+                "blitzPayout": 0.95,
+                "isOpen": True,
+            },
+            {
+                "id": "4",
+                "symbol": "AUDUSD",
+                "name": "AUDUSD",
+                "displayName": "AUDUSD",
+                "category": "Forex",
+                "groupName": "Currency pairs",
+                "precision": 5,
+                "isActive": True,
+                "isOtc": False,
+                "turboPayout": 0.75,
+                "blitzPayout": 0.60,
+                "isOpen": True,
+            }
+        ])
+
+        turbo_assets = client.get_highest_payout_assets(min_payout=0.80, mode="turbo")
+        assert len(turbo_assets) == 2
+        assert turbo_assets[0].symbol == "GBPUSD"
+        assert turbo_assets[1].symbol == "EURUSD"
+
+        blitz_assets = client.get_highest_payout_assets(min_payout=0.80, mode="blitz")
+        assert len(blitz_assets) == 1
+        assert blitz_assets[0].symbol == "GBPUSD"
+
+
+
+
 
 

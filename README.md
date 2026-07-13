@@ -145,6 +145,7 @@ client.on_trade_settled = lambda result: print(f"Settled: {result.trade_id} -> {
 | `is_asset_tradable(symbol)` | Safety check verifying if an asset is active and open for trading |
 | `change_account(mode)` | Switch between `"demo"` and `"real"` account modes |
 | `edit_demo_balance(amount)` | Request a demo balance top-up |
+| `get_highest_payout_assets(min_payout, mode)` | Filter active/open instruments by minimum payout rate, sorted in descending order of payout |
 | `subscribe_ticks(symbol)` | Start receiving live `Quote` ticks for a symbol |
 | `unsubscribe_ticks(symbol)` | Stop receiving ticks for a symbol |
 | `get_candles(symbol, end_from_time, minutes, timeframe)` | Fetch a single batch of historical candles |
@@ -154,6 +155,8 @@ client.on_trade_settled = lambda result: print(f"Settled: {result.trade_id} -> {
 | `buy_blitz(amount, symbol, duration_seconds)` | Place a blitz call (seconds) trade |
 | `put_blitz(amount, symbol, duration_seconds)` | Place a blitz put (seconds) trade |
 | `check_win(trade_id, timeout)` | Wait for and return a `TradeResult` |
+| `get_open_trades(is_demo, timeout)` | Returns `list[TradeResult]` — retrieve all active open trades |
+| `get_trade_history(page, page_size, is_demo, timeout)` | Returns `list[TradeResult]` — retrieve historical settled trades |
 | `get_server_time()` | Returns the estimated synchronized server timestamp in seconds |
 
 ---

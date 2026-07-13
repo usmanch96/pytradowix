@@ -61,7 +61,8 @@ class _ClientBase:
     _server_time_offset: float
     _subscribed_symbols: set[str]
 
-    def get_server_time(self) -> float: ...
+    def get_server_time(self) -> float:
+        raise NotImplementedError
     async def subscribe_ticks(self, symbol: str, lookback_minutes: int = 200, timeframe: int = 60, chart_type: str = "candle") -> None: ...
     async def unsubscribe_ticks(self, symbol: str) -> None: ...
 
