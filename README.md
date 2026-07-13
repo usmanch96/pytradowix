@@ -1,6 +1,10 @@
 # 🚀 PyTradoWix
 
 <p align="center">
+  <img src="PyTradoWix.png" alt="PyTradoWix Logo" width="600"/>
+</p>
+
+<p align="center">
   <strong>Unofficial Python API Wrapper & client for the TradoWix binary options trading platform.</strong>
 </p>
 <p align="center">
