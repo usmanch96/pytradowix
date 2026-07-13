@@ -103,7 +103,7 @@ async def main():
 
     # Place a trade
     trade = await client.buy(amount=1.0, symbol="USDJPY-OTC", direction="call", duration=1)
-    trade_id = trade["id"]
+    trade_id = trade.get("tradeId") or trade["id"]
     print(f"Trade placed: {trade_id}")
 
     # Wait for settlement
@@ -159,7 +159,7 @@ client.on_candle_update = lambda symbol, period, candle, is_closed: print(f"Cand
 | `get_candles(symbol, end_from_time, minutes, timeframe)` | Fetch a single batch of historical candles |
 | `get_historical_candles(symbol, amount_of_seconds, period)` | Fetch unlimited history via backward pagination |
 | `buy(amount, symbol, direction, duration, is_demo, expiration_mode)` | Place a turbo (minutes) or blitz (seconds) trade |
-| `put(amount, symbol, duration)` | Convenience alias for `buy(..., direction="put")` |
+| `put(amount, symbol, duration, is_demo, expiration_mode)` | Convenience alias for `buy(..., direction="put")` |
 | `buy_blitz(amount, symbol, duration_seconds)` | Place a blitz call (seconds) trade |
 | `put_blitz(amount, symbol, duration_seconds)` | Place a blitz put (seconds) trade |
 | `check_win(trade_id, timeout)` | Wait for and return a `TradeResult` |
