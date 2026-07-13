@@ -30,6 +30,7 @@
 ## 📌 Table of Contents
 *   [🛠 Installation](#-installation)
 *   [⚡ Quick Start](#-quick-start)
+*   [🔔 Event Callbacks](#-event-callbacks)
 *   [💡 API Reference](#-api-reference)
 *   [📦 Typed Data Classes](#-typed-data-classes)
 *   [🔄 Auto-Reconnect](#-auto-reconnect)
@@ -112,6 +113,26 @@ asyncio.run(main())
 
 ---
 
+## 🔔 Event Callbacks
+
+The client supports both synchronous and asynchronous event callbacks to respond to real-time events on the platform:
+
+```python
+# Triggered when the WebSocket connection is successfully authenticated and instruments cache is loaded
+client.on_connect = lambda: print("🚀 Connected and ready!")
+
+# Triggered when the connection closes gracefully or unexpectedly
+client.on_disconnect = lambda: print("🔌 Disconnected!")
+
+# Triggered whenever the account balance changes (e.g. from trade placements or settlements)
+client.on_balance_update = lambda balance: print(f"💰 New Balance: {balance.current_balance} {balance.currency}")
+
+# Triggered automatically when any placed trade is settled by the server
+client.on_trade_settled = lambda result: print(f"Settled: {result.trade_id} -> {result.result.upper()} (${result.profit:+.2f})")
+```
+
+---
+
 ## 💡 API Reference
 
 | Method | Description |
@@ -121,15 +142,19 @@ asyncio.run(main())
 | `get_profile()` | Returns `ProfileInfo` — user profile data |
 | `get_balance()` | Returns `Balance` — demo/real/bonus balances |
 | `get_assets()` | Returns `list[AssetInfo]` — all tradeable instruments |
+| `is_asset_tradable(symbol)` | Safety check verifying if an asset is active and open for trading |
 | `change_account(mode)` | Switch between `"demo"` and `"real"` account modes |
 | `edit_demo_balance(amount)` | Request a demo balance top-up |
 | `subscribe_ticks(symbol)` | Start receiving live `Quote` ticks for a symbol |
 | `unsubscribe_ticks(symbol)` | Stop receiving ticks for a symbol |
 | `get_candles(symbol, end_from_time, minutes, timeframe)` | Fetch a single batch of historical candles |
 | `get_historical_candles(symbol, amount_of_seconds, period)` | Fetch unlimited history via backward pagination |
-| `buy(amount, symbol, direction, duration)` | Place a call/put trade |
+| `buy(amount, symbol, direction, duration, is_demo, expiration_mode)` | Place a turbo (minutes) or blitz (seconds) trade |
 | `put(amount, symbol, duration)` | Convenience alias for `buy(..., direction="put")` |
+| `buy_blitz(amount, symbol, duration_seconds)` | Place a blitz call (seconds) trade |
+| `put_blitz(amount, symbol, duration_seconds)` | Place a blitz put (seconds) trade |
 | `check_win(trade_id, timeout)` | Wait for and return a `TradeResult` |
+| `get_server_time()` | Returns the estimated synchronized server timestamp in seconds |
 
 ---
 

@@ -15,7 +15,7 @@ import httpx
 from websockets.asyncio.client import ClientConnection
 
 from pytradowix.utils.waits import SlotRegistry
-from pytradowix.types import Quote, ReconnectPolicy
+from pytradowix.types import Quote, ReconnectPolicy, Balance, TradeResult
 
 
 class _ClientBase:
@@ -53,8 +53,21 @@ class _ClientBase:
     instruments: List[Dict[str, Any]]
     quotes: Dict[str, Quote]
     on_quote: Optional[Callable[[Quote], Union[None, Any]]]
+    on_connect: Optional[Callable[[], Union[None, Any]]]
+    on_disconnect: Optional[Callable[[], Union[None, Any]]]
+    on_balance_update: Optional[Callable[[Balance], Union[None, Any]]]
+    on_trade_settled: Optional[Callable[[TradeResult], Union[None, Any]]]
+
+    _server_time_offset: float
+    _subscribed_symbols: set[str]
+
+    def get_server_time(self) -> float: ...
+    async def subscribe_ticks(self, symbol: str, lookback_minutes: int = 200, timeframe: int = 60, chart_type: str = "candle") -> None: ...
+    async def unsubscribe_ticks(self, symbol: str) -> None: ...
 
     # ── Internal helpers (implemented in client.py) ───────────────────────
     async def _send_ws(self, payload: Dict[str, Any]) -> None: ...
     async def _start_ws(self) -> None: ...
     async def _stop_ws(self) -> None: ...
+
+

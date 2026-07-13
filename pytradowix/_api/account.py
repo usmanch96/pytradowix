@@ -203,3 +203,18 @@ class AccountMixin(_ClientBase):
             list[AssetInfo]: Known tradeable instruments.
         """
         return [AssetInfo.from_dict(inst) for inst in self.instruments]
+
+    def is_asset_tradable(self, symbol: str) -> bool:
+        """Check if an asset is active and open for trading.
+
+        Args:
+            symbol: Asset symbol (e.g. ``"USDJPY-OTC"``).
+
+        Returns:
+            bool: ``True`` if the asset is active and open, ``False`` otherwise.
+        """
+        for asset in self.get_assets():
+            if asset.symbol == symbol:
+                return asset.is_active and asset.is_open
+        return False
+

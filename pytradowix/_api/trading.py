@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import time
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 
 from pytradowix._base import _ClientBase
 from pytradowix.exceptions import TradowixTimeoutError, TradowixException
@@ -23,6 +23,7 @@ class TradingMixin(_ClientBase):
         direction: TradeDirection,
         duration: int = 1,
         is_demo: Optional[bool] = None,
+        expiration_mode: Literal["turbo", "blitz"] = "turbo",
     ) -> dict[str, Any]:
         """Place a call (Higher) trade.
 
@@ -30,8 +31,9 @@ class TradingMixin(_ClientBase):
             amount: Investment amount in account currency (e.g. ``1.0``).
             symbol: Asset symbol (e.g. ``"USDJPY-OTC"``).
             direction: ``"call"`` for Higher, ``"put"`` for Lower.
-            duration: Turbo expiry in minutes (default: ``1``).
+            duration: Expiry time. Minutes for turbo, seconds for blitz.
             is_demo: Override demo flag. Defaults to the client's active mode.
+            expiration_mode: ``"turbo"`` (minutes) or ``"blitz"`` (seconds).
 
         Returns:
             dict: Raw ``tradeOpened`` payload from the server.
@@ -55,10 +57,13 @@ class TradingMixin(_ClientBase):
             "symbol": symbol,
             "direction": direction.lower(),
             "amount": amount,
-            "expirationMode": "turbo",
-            "turboMinutes": duration,
+            "expirationMode": expiration_mode,
             "isDemo": demo_flag,
         }
+        if expiration_mode == "blitz":
+            trade_msg["blitzSeconds"] = duration
+        else:
+            trade_msg["turboMinutes"] = duration
 
         logger.debug(f"Sending placeTrade: {trade_msg}")
         try:
@@ -97,6 +102,61 @@ class TradingMixin(_ClientBase):
             duration=duration,
             is_demo=is_demo,
         )
+
+    async def buy_blitz(
+        self,
+        amount: float,
+        symbol: str,
+        duration_seconds: int,
+        is_demo: Optional[bool] = None,
+    ) -> dict[str, Any]:
+        """Place a blitz call (Higher) trade.
+
+        Args:
+            amount: Investment amount.
+            symbol: Asset symbol.
+            duration_seconds: Blitz duration in seconds (e.g. ``10``, ``15``, ``30``).
+            is_demo: Override demo flag.
+
+        Returns:
+            dict: Raw ``tradeOpened`` payload from the server.
+        """
+        return await self.buy(
+            amount=amount,
+            symbol=symbol,
+            direction="call",
+            duration=duration_seconds,
+            is_demo=is_demo,
+            expiration_mode="blitz",
+        )
+
+    async def put_blitz(
+        self,
+        amount: float,
+        symbol: str,
+        duration_seconds: int,
+        is_demo: Optional[bool] = None,
+    ) -> dict[str, Any]:
+        """Place a blitz put (Lower) trade.
+
+        Args:
+            amount: Investment amount.
+            symbol: Asset symbol.
+            duration_seconds: Blitz duration in seconds (e.g. ``10``, ``15``, ``30``).
+            is_demo: Override demo flag.
+
+        Returns:
+            dict: Raw ``tradeOpened`` payload from the server.
+        """
+        return await self.buy(
+            amount=amount,
+            symbol=symbol,
+            direction="put",
+            duration=duration_seconds,
+            is_demo=is_demo,
+            expiration_mode="blitz",
+        )
+
 
     async def check_win(self, trade_id: str, timeout: float = 120.0) -> TradeResult:
         """Wait for and return the settlement result of a trade.

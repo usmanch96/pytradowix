@@ -16,7 +16,7 @@ from pytradowix._api.trading import TradingMixin
 from pytradowix._api.realtime import RealtimeMixin
 from pytradowix._api.history import HistoryMixin
 from pytradowix.utils.waits import SlotRegistry
-from pytradowix.types import Quote, ReconnectPolicy
+from pytradowix.types import Quote, ReconnectPolicy, Balance, TradeResult
 from pytradowix.exceptions import TradowixException, TradowixAuthError
 
 logger = logging.getLogger(__name__)
@@ -69,6 +69,12 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
         self.instruments: List[Dict[str, Any]] = []
         self.quotes: Dict[str, Quote] = {}
         self.on_quote: Optional[Callable[[Quote], Union[None, Any]]] = None
+        self.on_connect: Optional[Callable[[], Union[None, Any]]] = None
+        self.on_disconnect: Optional[Callable[[], Union[None, Any]]] = None
+        self.on_balance_update: Optional[Callable[[Balance], Union[None, Any]]] = None
+        self.on_trade_settled: Optional[Callable[[TradeResult], Union[None, Any]]] = None
+        self._server_time_offset: float = 0.0
+        self._subscribed_symbols: set[str] = set()
 
     async def _send_ws(self, payload: Dict[str, Any]) -> None:
         """Send a JSON payload over the WebSocket."""
@@ -146,6 +152,8 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
         except asyncio.TimeoutError:
             logger.warning("Timed out waiting for initial balance update during connection")
 
+        await self._trigger_callback(self.on_connect)
+
     async def _ws_ping_loop(self) -> None:
         """Background loop to send keep-alive pings."""
         try:
@@ -176,6 +184,7 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
                 break
             except ConnectionClosed:
                 logger.info("WebSocket connection closed by remote.")
+                await self._trigger_callback(self.on_disconnect)
                 if not self.reconnect_policy.enabled:
                     break
                 attempt += 1
@@ -204,12 +213,20 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
 
     async def _handle_ws_message(self, msg: Dict[str, Any]) -> None:
         """Route parsed JSON message to their respective handlers or slots."""
+        server_ts = msg.get("timestamp")
+        if server_ts is not None:
+            self._server_time_offset = (float(server_ts) / 1000.0) - time.time()
+
         m_type = msg.get("type")
         
         if m_type == "balanceUpdate":
             data = msg.get("data", {})
             self._balance_data = data.get("balance", {})
             self._slots.balance.set(self._balance_data)
+            await self._trigger_callback(
+                self.on_balance_update,
+                Balance.from_dict(self._balance_data, is_demo=self._is_demo)
+            )
             
         elif m_type == "instruments":
             self.instruments = msg.get("data", [])
@@ -248,28 +265,42 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
                 trade_id = res.get("tradeId")
                 if trade_id:
                     self._slots.win_result(trade_id).set(res)
+                await self._trigger_callback(self.on_trade_settled, TradeResult.from_dict(res))
                     
         elif m_type == "candleHistory":
             req_id = msg.get("requestId")
             if req_id:
                 self._slots.candle_history(req_id).set(msg.get("data", {}))
+            else:
+                data = msg.get("data", {})
+                symbol = data.get("symbol")
+                if symbol:
+                    self._slots.chart_load(symbol).set(data)
 
         elif m_type == "timeSync":
-            pass
+            data = msg.get("data", {})
+            server_time_ms = data.get("timestamp") or msg.get("timestamp")
+            if server_time_ms is not None:
+                self._server_time_offset = (float(server_time_ms) / 1000.0) - time.time()
 
     async def _trigger_quote_callback(self, quote: Quote) -> None:
         """Safely fire the user-registered on_quote callback."""
-        if self.on_quote:
+        await self._trigger_callback(self.on_quote, quote)
+
+    async def _trigger_callback(self, cb: Optional[Callable[..., Any]], *args: Any) -> None:
+        """Safely fire a user-registered callback whether sync or async."""
+        if cb:
             try:
-                if inspect.iscoroutinefunction(self.on_quote):
-                    await self.on_quote(quote)
+                if inspect.iscoroutinefunction(cb):
+                    await cb(*args)
                 else:
-                    self.on_quote(quote)
+                    cb(*args)
             except Exception as e:
-                logger.error(f"Error in user on_quote callback: {e}", exc_info=True)
+                logger.error(f"Error in user callback: {e}", exc_info=True)
 
     async def _stop_ws(self) -> None:
         """Cancel background tasks and close connection."""
+        had_ws = self._ws is not None
         if self._ws_task is not None:
             self._ws_task.cancel()
             self._ws_task = None
@@ -279,3 +310,9 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
         if self._ws is not None:
             await self._ws.close()
             self._ws = None
+        if had_ws:
+            await self._trigger_callback(self.on_disconnect)
+
+    def get_server_time(self) -> float:
+        """Return the estimated server epoch timestamp in seconds."""
+        return time.time() + self._server_time_offset

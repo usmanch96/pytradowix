@@ -12,7 +12,7 @@ from pytradowix.types import (
     Quote,
     ReconnectPolicy,
 )
-
+from pytradowix._api.account import AccountMixin
 
 # ── Candle ────────────────────────────────────────────────────────────────────
 
@@ -157,3 +157,251 @@ class TestReconnectPolicy:
     def test_disabled(self):
         p = ReconnectPolicy(enabled=False)
         assert p.enabled is False
+
+
+# ── Asset Tradability ─────────────────────────────────────────────────────────
+
+class DummyClient(AccountMixin):
+    def __init__(self, instruments: list[dict]):
+        self.instruments = instruments
+        self._is_demo = True
+
+class TestAssetTradability:
+    def test_is_asset_tradable_active_and_open(self):
+        client = DummyClient([
+            {
+                "id": "1",
+                "symbol": "EURUSD",
+                "name": "EURUSD",
+                "displayName": "EURUSD",
+                "category": "Forex",
+                "groupName": "Currency pairs",
+                "precision": 5,
+                "isActive": True,
+                "isOtc": False,
+                "turboPayout": 0.8,
+                "blitzPayout": 0.8,
+                "isOpen": True,
+            }
+        ])
+        assert client.is_asset_tradable("EURUSD") is True
+
+    def test_is_asset_tradable_inactive(self):
+        client = DummyClient([
+            {
+                "id": "1",
+                "symbol": "EURUSD",
+                "name": "EURUSD",
+                "displayName": "EURUSD",
+                "category": "Forex",
+                "groupName": "Currency pairs",
+                "precision": 5,
+                "isActive": False,
+                "isOtc": False,
+                "turboPayout": 0.8,
+                "blitzPayout": 0.8,
+                "isOpen": True,
+            }
+        ])
+        assert client.is_asset_tradable("EURUSD") is False
+
+    def test_is_asset_tradable_closed(self):
+        client = DummyClient([
+            {
+                "id": "1",
+                "symbol": "EURUSD",
+                "name": "EURUSD",
+                "displayName": "EURUSD",
+                "category": "Forex",
+                "groupName": "Currency pairs",
+                "precision": 5,
+                "isActive": True,
+                "isOtc": False,
+                "turboPayout": 0.8,
+                "blitzPayout": 0.8,
+                "isOpen": False,
+            }
+        ])
+        assert client.is_asset_tradable("EURUSD") is False
+
+    def test_is_asset_tradable_missing_symbol(self):
+        client = DummyClient([])
+        assert client.is_asset_tradable("EURUSD") is False
+
+
+# ── Event Callbacks ───────────────────────────────────────────────────────────
+
+class TestEventCallbacks:
+    @pytest.mark.asyncio
+    async def test_trigger_callback_sync(self):
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+        called = False
+
+        def on_connect_cb():
+            nonlocal called
+            called = True
+
+        client.on_connect = on_connect_cb
+        await client._trigger_callback(client.on_connect)
+        assert called
+
+    @pytest.mark.asyncio
+    async def test_trigger_callback_async(self):
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+        called = False
+
+        async def on_connect_cb():
+            nonlocal called
+            called = True
+
+        client.on_connect = on_connect_cb
+        await client._trigger_callback(client.on_connect)
+        assert called
+
+    @pytest.mark.asyncio
+    async def test_trigger_balance_update(self):
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+        received_balance = None
+
+        def on_balance_cb(bal: Balance):
+            nonlocal received_balance
+            received_balance = bal
+
+        client.on_balance_update = on_balance_cb
+        test_bal = Balance(
+            demo_balance=100.0,
+            real_balance=0.0,
+            bonus_balance=0.0,
+            current_balance=100.0,
+            currency="USD",
+            is_demo=True,
+        )
+        await client._trigger_callback(client.on_balance_update, test_bal)
+        assert received_balance == test_bal
+
+    @pytest.mark.asyncio
+    async def test_trigger_trade_settled(self):
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+        received_result = None
+
+        def on_trade_cb(res: TradeResult):
+            nonlocal received_result
+            received_result = res
+
+        client.on_trade_settled = on_trade_cb
+        test_res = TradeResult(
+            trade_id="t-001",
+            user_id="u-001",
+            symbol="USDJPY-OTC",
+            direction="call",
+            amount=1.0,
+            open_price=100.0,
+            close_price=101.0,
+            result="win",
+            profit=0.92,
+            new_balance=100.92,
+            open_time="",
+            expiry_time="",
+            close_time="",
+            duration=60,
+            is_demo=True,
+        )
+        await client._trigger_callback(client.on_trade_settled, test_res)
+        assert received_result == test_res
+
+
+# ── Blitz Trading ─────────────────────────────────────────────────────────────
+
+class TestBlitzTrading:
+    @pytest.mark.asyncio
+    async def test_buy_turbo_payload(self, monkeypatch):
+        from typing import Any, cast
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+        
+        # Mock ws
+        class MockWs:
+            class MockState:
+                name = "OPEN"
+            state = MockState()
+        client._ws = cast(Any, MockWs())
+
+        sent_payload = None
+
+        async def mock_send_ws(payload):
+            nonlocal sent_payload
+            sent_payload = payload
+            req_id = payload["requestId"]
+            client._slots.order_confirm(req_id).set({"id": "trade-123", "openPrice": 1.23})
+
+        monkeypatch.setattr(client, "_send_ws", mock_send_ws)
+
+        res = await client.buy(amount=10.0, symbol="EURUSD", direction="call", duration=5, expiration_mode="turbo")
+        assert res["id"] == "trade-123"
+        assert sent_payload is not None
+        assert sent_payload["expirationMode"] == "turbo"
+        assert sent_payload["turboMinutes"] == 5
+        assert "blitzSeconds" not in sent_payload
+
+    @pytest.mark.asyncio
+    async def test_buy_blitz_payload(self, monkeypatch):
+        from typing import Any, cast
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+
+        class MockWs:
+            class MockState:
+                name = "OPEN"
+            state = MockState()
+        client._ws = cast(Any, MockWs())
+
+        sent_payload = None
+
+        async def mock_send_ws(payload):
+            nonlocal sent_payload
+            sent_payload = payload
+            req_id = payload["requestId"]
+            client._slots.order_confirm(req_id).set({"id": "trade-456", "openPrice": 1.23})
+
+        monkeypatch.setattr(client, "_send_ws", mock_send_ws)
+
+        res = await client.buy_blitz(amount=10.0, symbol="EURUSD", duration_seconds=15)
+        assert res["id"] == "trade-456"
+        assert sent_payload is not None
+        assert sent_payload["expirationMode"] == "blitz"
+        assert sent_payload["blitzSeconds"] == 15
+        assert "turboMinutes" not in sent_payload
+
+
+# ── Clock Synchronization ─────────────────────────────────────────────────────
+
+class TestTimeSync:
+    @pytest.mark.asyncio
+    async def test_time_sync_offset_calculation(self, monkeypatch):
+        import time
+        from pytradowix import Tradowix
+        client = Tradowix(email="test@email.com", password="password")
+        
+        assert client._server_time_offset == 0.0
+        
+        local_time_mock = 1000.0
+        monkeypatch.setattr(time, "time", lambda: local_time_mock)
+        
+        time_sync_frame = {
+            "type": "timeSync",
+            "data": {
+                "timestamp": 1005000
+            }
+        }
+        await client._handle_ws_message(time_sync_frame)
+        
+        assert client._server_time_offset == 5.0
+        assert client.get_server_time() == 1005.0
+
+
+
+

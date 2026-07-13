@@ -34,6 +34,7 @@ class RealtimeMixin(_ClientBase):
             "chartType": chart_type
         }
         logger.info(f"Subscribing to tick updates for {symbol}")
+        self._subscribed_symbols.add(symbol)
         await self._send_ws(msg)
 
     async def unsubscribe_ticks(self, symbol: str) -> None:
@@ -43,4 +44,6 @@ class RealtimeMixin(_ClientBase):
             "symbol": symbol
         }
         logger.info(f"Unsubscribing from tick updates for {symbol}")
+        self._subscribed_symbols.discard(symbol)
         await self._send_ws(msg)
+

@@ -107,3 +107,18 @@ class SlotRegistry:
 
     def release_candle_history(self, request_id: str) -> None:
         self._candle_history.pop(request_id, None)
+
+    # Initial chart load triggered by subscribeTicks (no requestId)
+    def chart_load(self, symbol: str) -> WaitableSlot[Dict[str, Any]]:
+        slot = getattr(self, "_chart_load", None)
+        if slot is None:
+            self._chart_load = {}
+        target_slot = self._chart_load.get(symbol)
+        if target_slot is None:
+            target_slot = WaitableSlot()
+            self._chart_load[symbol] = target_slot
+        return target_slot
+
+    def release_chart_load(self, symbol: str) -> None:
+        self._chart_load.pop(symbol, None)
+
