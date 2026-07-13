@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 import logging
 from typing import Optional, Any, Literal, List
+
+from websockets.protocol import State as WsState
 
 from pytradowix._base import _ClientBase
 from pytradowix.exceptions import TradowixTimeoutError, TradowixException
@@ -42,11 +45,11 @@ class TradingMixin(_ClientBase):
             TradowixException: If not connected.
             TradowixTimeoutError: If the server does not confirm within 10 s.
         """
-        if not self._ws or self._ws.state.name != "OPEN":
+        if not self._ws or (self._ws.state is not WsState.OPEN and getattr(self._ws.state, "name", None) != "OPEN"):
             raise TradowixException("WebSocket is not connected")
 
         demo_flag = self._is_demo if is_demo is None else is_demo
-        req_id = f"trade-{int(time.time() * 1000)}"
+        req_id = f"trade-{uuid.uuid4().hex}"
 
         slot = self._slots.order_confirm(req_id)
         slot.clear()
@@ -83,6 +86,7 @@ class TradingMixin(_ClientBase):
         symbol: str,
         duration: int = 1,
         is_demo: Optional[bool] = None,
+        expiration_mode: Literal["turbo", "blitz"] = "turbo",
     ) -> dict[str, Any]:
         """Convenience alias for ``buy(..., direction='put')``.
 
@@ -91,6 +95,7 @@ class TradingMixin(_ClientBase):
             symbol: Asset symbol.
             duration: Turbo expiry in minutes.
             is_demo: Override demo flag.
+            expiration_mode: ``"turbo"`` (minutes) or ``"blitz"`` (seconds).
 
         Returns:
             dict: Raw ``tradeOpened`` payload from the server.
@@ -101,6 +106,7 @@ class TradingMixin(_ClientBase):
             direction="put",
             duration=duration,
             is_demo=is_demo,
+            expiration_mode=expiration_mode,
         )
 
     async def buy_blitz(
@@ -172,7 +178,6 @@ class TradingMixin(_ClientBase):
             TradowixTimeoutError: If the trade does not settle within *timeout* seconds.
         """
         slot = self._slots.win_result(trade_id)
-        slot.clear()
 
         try:
             logger.debug(f"Waiting for settlement of trade {trade_id}")
@@ -199,7 +204,7 @@ class TradingMixin(_ClientBase):
         Returns:
             list[TradeResult]: List of typed open trades.
         """
-        if not self._ws or self._ws.state.name != "OPEN":
+        if not self._ws or (self._ws.state is not WsState.OPEN and getattr(self._ws.state, "name", None) != "OPEN"):
             raise TradowixException("WebSocket is not connected")
 
         demo_flag = self._is_demo if is_demo is None else is_demo
@@ -238,7 +243,7 @@ class TradingMixin(_ClientBase):
         Returns:
             list[TradeResult]: List of typed historical trades.
         """
-        if not self._ws or self._ws.state.name != "OPEN":
+        if not self._ws or (self._ws.state is not WsState.OPEN and getattr(self._ws.state, "name", None) != "OPEN"):
             raise TradowixException("WebSocket is not connected")
 
         demo_flag = self._is_demo if is_demo is None else is_demo

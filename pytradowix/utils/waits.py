@@ -14,27 +14,39 @@ class WaitableSlot(Generic[T]):
 
     def __init__(self) -> None:
         self._value: T | None = None
-        self._event = asyncio.Event()
+        self._event: asyncio.Event | None = None
+
+    def _get_event(self) -> asyncio.Event:
+        if self._event is None:
+            self._event = asyncio.Event()
+        return self._event
 
     def set(self, value: T) -> None:
         """Store the value and wake any awaiting consumers."""
         if value is None:
             raise ValueError("WaitableSlot.set() does not accept None; use clear() to reset")
         self._value = value
-        self._event.set()
+        self._get_event().set()
 
     def clear(self) -> None:
         """Reset the slot so subsequent waits block again."""
         self._value = None
-        self._event.clear()
+        if self._event is not None:
+            self._event.clear()
+
+    @property
+    def value(self) -> T | None:
+        """Return the current value without blocking."""
+        return self._value
 
     def is_set(self) -> bool:
         """Return True if the slot currently holds a value."""
-        return self._event.is_set()
+        return self._event is not None and self._event.is_set()
 
     async def wait(self, timeout: float = DEFAULT_TIMEOUT) -> T:
         """Block until set or raise asyncio.TimeoutError on timeout."""
-        await asyncio.wait_for(self._event.wait(), timeout=timeout)
+        await asyncio.wait_for(self._get_event().wait(), timeout=timeout)
+        assert self._value is not None, "WaitableSlot: event set but _value is None"
         return self._value  # type: ignore[return-value]
 
 
@@ -71,7 +83,6 @@ class SlotRegistry:
     def __init__(self) -> None:
         # Named slots
         self.balance: WaitableSlot[Dict[str, Any]] = WaitableSlot()
-        self.auth_status: WaitableSlot[bool] = WaitableSlot()
         self.open_trades: WaitableSlot[Dict[str, Any]] = WaitableSlot()
         self.trade_history: WaitableSlot[Dict[str, Any]] = WaitableSlot()
 

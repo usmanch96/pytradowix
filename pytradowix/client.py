@@ -59,6 +59,8 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
 
         self._session: Optional[httpx.AsyncClient] = None
         self._ws: Optional[ClientConnection] = None
+        self._connection_lock = asyncio.Lock()
+        self._symbol_locks: Dict[str, asyncio.Lock] = {}
 
         self._ws_task: Optional[asyncio.Task[None]] = None
         self._ping_task: Optional[asyncio.Task[None]] = None
@@ -124,7 +126,7 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
             "type": "authenticate",
             "token": self._session_token
         }
-        logger.debug(f"Sending WS auth handshake: {auth_msg}")
+        logger.debug("Sending WS auth handshake (token redacted)")
         await self._ws.send(json.dumps(auth_msg))
 
         # Wait for "authenticated" confirmation
@@ -162,11 +164,14 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
         try:
             while self._ws is not None and self._ws.state is WsState.OPEN:
                 await asyncio.sleep(10.0)
-                await self.ping()
+                try:
+                    await self.ping()
+                except Exception as e:
+                    logger.warning(f"Failed to send keep-alive ping: {e}")
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            logger.error(f"WS ping loop encountered error: {e}")
+            logger.error(f"WS ping loop encountered unexpected error: {e}")
 
     async def _ws_recv_loop(self) -> None:
         """Background receiver loop with optional auto-reconnect on ConnectionClosed."""
@@ -187,6 +192,7 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
                 break
             except ConnectionClosed:
                 logger.info("WebSocket connection closed by remote.")
+                self._ws = None
                 await self._trigger_callback(self.on_disconnect)
                 if not self.reconnect_policy.enabled:
                     break
@@ -217,10 +223,9 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
     async def _handle_ws_message(self, msg: Dict[str, Any]) -> None:
         """Route parsed JSON message to their respective handlers or slots."""
         server_ts = msg.get("timestamp")
-        if server_ts is not None:
-            self._server_time_offset = (float(server_ts) / 1000.0) - time.time()
-
         m_type = msg.get("type")
+        if server_ts is not None and m_type != "timeSync":
+            self._server_time_offset = (float(server_ts) / 1000.0) - time.time()
         
         if m_type == "balanceUpdate":
             data = msg.get("data", {})
@@ -268,7 +273,9 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
                 trade_id = res.get("tradeId")
                 if trade_id:
                     self._slots.win_result(trade_id).set(res)
-                await self._trigger_callback(self.on_trade_settled, TradeResult.from_dict(res))
+                    await self._trigger_callback(self.on_trade_settled, TradeResult.from_dict(res))
+                else:
+                    logger.warning(f"Received trade result without tradeId: {res}")
                     
         elif m_type == "candleHistory":
             req_id = msg.get("requestId")
@@ -316,11 +323,14 @@ class Tradowix(AccountMixin, TradingMixin, RealtimeMixin, HistoryMixin):
     async def _stop_ws(self) -> None:
         """Cancel background tasks and close connection."""
         had_ws = self._ws is not None
+        current_task = asyncio.current_task()
         if self._ws_task is not None:
-            self._ws_task.cancel()
+            if self._ws_task != current_task:
+                self._ws_task.cancel()
             self._ws_task = None
         if self._ping_task is not None:
-            self._ping_task.cancel()
+            if self._ping_task != current_task:
+                self._ping_task.cancel()
             self._ping_task = None
         if self._ws is not None:
             await self._ws.close()

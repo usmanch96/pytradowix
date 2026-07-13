@@ -81,7 +81,7 @@ async def main():
         # Place a $1 call trade on USDJPY-OTC
         logger.info(f"Placing a $1 call option order on {symbol}...")
         trade = await client.buy(amount=1.0, symbol=symbol, direction="call", duration=1)
-        trade_id = trade.get('id')
+        trade_id = trade.get('tradeId') or trade.get('id')
         if not isinstance(trade_id, str):
             logger.error(f"Invalid or missing trade ID in order response: {trade_id}")
             return

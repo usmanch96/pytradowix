@@ -73,11 +73,22 @@ class Balance:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any], is_demo: bool = True) -> "Balance":
+        demo_bal = float(data.get("demoBalance", 0.0))
+        real_bal = float(data.get("realBalance", 0.0))
+        bonus_bal = float(data.get("bonusBalance", 0.0))
+        current_bal = float(data.get("currentBalance", 0.0))
+        expected_bal = demo_bal if is_demo else real_bal
+        if current_bal != expected_bal:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Balance inconsistency detected: currentBalance ({current_bal}) "
+                f"does not match {'demoBalance' if is_demo else 'realBalance'} ({expected_bal})."
+            )
         return cls(
-            demo_balance=float(data.get("demoBalance", 0.0)),
-            real_balance=float(data.get("realBalance", 0.0)),
-            bonus_balance=float(data.get("bonusBalance", 0.0)),
-            current_balance=float(data.get("currentBalance", 0.0)),
+            demo_balance=demo_bal,
+            real_balance=real_bal,
+            bonus_balance=bonus_bal,
+            current_balance=current_bal,
             currency=str(data.get("currency", "USD")),
             is_demo=is_demo,
         )
@@ -179,13 +190,31 @@ class TradeResult:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "TradeResult":
-        result_raw = str(data.get("result", "")).lower()
-        status = result_raw if result_raw in ("win", "loss", "draw") else "pending"
+        res_val = data.get("result")
+        if res_val in (1, "1", "win"):
+            status = "win"
+        elif res_val in (2, "2", "loss"):
+            status = "loss"
+        elif res_val in (3, "3", "draw"):
+            status = "draw"
+        else:
+            status = str(res_val).lower() if res_val is not None else ""
+            if status not in ("win", "loss", "draw"):
+                status = "pending"
+
+        dir_val = data.get("direction")
+        if dir_val in (1, "1", "call", "buy"):
+            direction = "call"
+        elif dir_val in (2, "2", "put", "sell"):
+            direction = "put"
+        else:
+            direction = str(dir_val).lower() if dir_val is not None else ""
+
         return cls(
             trade_id=str(data.get("tradeId") or data.get("id") or ""),
             user_id=str(data.get("userId", "")),
             symbol=str(data.get("symbol", "")),
-            direction=str(data.get("direction", "")),
+            direction=direction,
             amount=float(data.get("amount", 0.0)),
             open_price=float(data.get("openPrice", 0.0)),
             close_price=float(data.get("closePrice", 0.0)),
@@ -213,7 +242,7 @@ class Quote:
 
 # -- ReconnectPolicy ----------------------------------------------------------
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class ReconnectPolicy:
     """Configures auto-reconnect behaviour for the Tradowix client."""
 

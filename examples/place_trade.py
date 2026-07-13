@@ -36,7 +36,7 @@ async def main() -> None:
     # Place a call (Higher) trade
     print(f"\nPlacing ${AMOUNT} CALL on {SYMBOL} for {DURATION} minute(s)...")
     trade = await client.buy(amount=AMOUNT, symbol=SYMBOL, direction="call", duration=DURATION)
-    trade_id = trade.get("id")
+    trade_id = trade.get("tradeId") or trade.get("id")
     if not isinstance(trade_id, str):
         print(f"Failed to place trade: {trade}")
         await client.unsubscribe_ticks(SYMBOL)

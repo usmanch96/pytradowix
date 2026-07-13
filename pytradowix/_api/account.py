@@ -5,6 +5,7 @@ on attributes set up in Tradowix.__init__ inside pytradowix/client.py.
 """
 from __future__ import annotations
 
+import asyncio
 import httpx
 import logging
 from typing import Optional, Literal, List
@@ -32,89 +33,94 @@ class AccountMixin(_ClientBase):
             TradowixAuthError: On invalid credentials.
             TradowixException: On any other connection failure.
         """
-        cached_token = self._session_token
-        # Clean up any existing connection
-        await self.close()
-        self._session_token = cached_token
+        async with self._connection_lock:
+            cached_token = self._session_token
+            # Clean up any existing connection
+            await self._close_unlocked()
+            self._session_token = cached_token
 
-        from pytradowix.config import update_session
+            from pytradowix.config import update_session
 
-        self._session = httpx.AsyncClient(timeout=30.0)
+            self._session = httpx.AsyncClient(timeout=30.0)
 
-        # Try utilizing cached session token if available
-        if self._session_token:
-            logger.info("Attempting to connect with cached session token...")
+            # Try utilizing cached session token if available
+            if self._session_token:
+                logger.info("Attempting to connect with cached session token...")
+                try:
+                    self._session.cookies.set("session-token", self._session_token)
+                    profile_url = f"{self._base_url}/api/auth/profile"
+                    prof_resp = await self._session.get(profile_url)
+                    if prof_resp.status_code == 200:
+                        self._profile_data = prof_resp.json()
+                        await self._start_ws()
+                        logger.info("Connected successfully using cached session token!")
+                        return True
+                    else:
+                        logger.info(
+                            f"Cached session returned status {prof_resp.status_code}. Re-authenticating..."
+                        )
+                except Exception as e:
+                    logger.info(f"Cached session failed: {e}. Re-authenticating...")
+                    self._session_token = None
+                    await self._stop_ws()
+                    if self._session is not None:
+                        await self._session.aclose()
+                    self._session = httpx.AsyncClient(timeout=30.0)
+
+            # Fallback to standard credential login
+            login_url = f"{self._base_url}/api/auth/login"
+            payload = {"email": self._email, "password": self._password}
+
+            logger.info("Logging in to TradoWix via credentials POST...")
             try:
+                resp = await self._session.post(login_url, json=payload)
+                if resp.status_code != 200:
+                    raise TradowixAuthError(
+                        f"HTTP login failed with status {resp.status_code}: {resp.text}"
+                    )
+
+                data = resp.json()
+                if not data.get("success"):
+                    raise TradowixAuthError(
+                        f"Login response indicates failure: {data.get('message')}"
+                    )
+
+                self._session_token = data.get("sessionToken")
+                if not self._session_token:
+                    raise TradowixAuthError("Login response missing sessionToken")
+
+                # Persist the newly acquired session token
+                await asyncio.to_thread(update_session, self._email, self._session_token, self._user_agent)
+
                 self._session.cookies.set("session-token", self._session_token)
+
+                # Fetch profile
                 profile_url = f"{self._base_url}/api/auth/profile"
                 prof_resp = await self._session.get(profile_url)
                 if prof_resp.status_code == 200:
                     self._profile_data = prof_resp.json()
-                    await self._start_ws()
-                    logger.info("Connected successfully using cached session token!")
-                    return True
-                else:
-                    logger.info(
-                        f"Cached session returned status {prof_resp.status_code}. Re-authenticating..."
-                    )
+
+                await self._start_ws()
+                return True
+
             except Exception as e:
-                logger.info(f"Cached session failed: {e}. Re-authenticating...")
-                self._session_token = None
-                await self._stop_ws()
-                if self._session is not None:
-                    await self._session.aclose()
-                self._session = httpx.AsyncClient(timeout=30.0)
-
-        # Fallback to standard credential login
-        login_url = f"{self._base_url}/api/auth/login"
-        payload = {"email": self._email, "password": self._password}
-
-        logger.info("Logging in to TradoWix via credentials POST...")
-        try:
-            resp = await self._session.post(login_url, json=payload)
-            if resp.status_code != 200:
-                raise TradowixAuthError(
-                    f"HTTP login failed with status {resp.status_code}: {resp.text}"
-                )
-
-            data = resp.json()
-            if not data.get("success"):
-                raise TradowixAuthError(
-                    f"Login response indicates failure: {data.get('message')}"
-                )
-
-            self._session_token = data.get("sessionToken")
-            if not self._session_token:
-                raise TradowixAuthError("Login response missing sessionToken")
-
-            # Persist the newly acquired session token
-            update_session(self._email, self._session_token, self._user_agent)
-
-            self._session.cookies.set("session-token", self._session_token)
-
-            # Fetch profile
-            profile_url = f"{self._base_url}/api/auth/profile"
-            prof_resp = await self._session.get(profile_url)
-            if prof_resp.status_code == 200:
-                self._profile_data = prof_resp.json()
-
-            await self._start_ws()
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to connect to TradoWix: {e}")
-            await self.close()
-            if isinstance(e, TradowixException):
-                raise
-            raise TradowixException(f"Connection failed: {e}") from e
+                logger.error(f"Failed to connect to TradoWix: {e}")
+                await self._close_unlocked()
+                if isinstance(e, TradowixException):
+                    raise
+                raise TradowixException(f"Connection failed: {e}") from e
 
     async def close(self) -> None:
         """Gracefully close the WebSocket and HTTP session."""
+        async with self._connection_lock:
+            await self._close_unlocked()
+
+    async def _close_unlocked(self) -> None:
+        """Gracefully close the WebSocket and HTTP session without acquiring the lock."""
         await self._stop_ws()
         if self._session is not None:
             await self._session.aclose()
             self._session = None
-        self._session_token = None
         self._profile_data = None
 
     async def change_account(self, mode: str) -> bool:

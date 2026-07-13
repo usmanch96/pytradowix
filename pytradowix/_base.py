@@ -9,6 +9,7 @@ This module is **not** part of the public API — it exists purely for typing.
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Callable, Dict, List, Optional, Union
 
 import httpx
@@ -41,6 +42,8 @@ class _ClientBase:
 
     _session: Optional[httpx.AsyncClient]
     _ws: Optional[ClientConnection]
+    _connection_lock: asyncio.Lock
+    _symbol_locks: Dict[str, asyncio.Lock]
 
     reconnect_policy: ReconnectPolicy
 
@@ -68,7 +71,7 @@ class _ClientBase:
         raise NotImplementedError
     async def subscribe_ticks(self, symbol: str, lookback_minutes: int = 200, timeframe: int = 60, chart_type: str = "candle") -> None: ...
     async def unsubscribe_ticks(self, symbol: str) -> None: ...
-    def setup_candle_stream(self, symbol: str, periods: List[int] = [60]) -> None:
+    def setup_candle_stream(self, symbol: str, periods: Optional[List[int]] = None) -> None:
         raise NotImplementedError
 
     # ── Internal helpers (implemented in client.py) ───────────────────────
